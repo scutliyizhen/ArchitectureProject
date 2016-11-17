@@ -7,7 +7,5 @@
 //
 
 #import <Foundation/Foundation.h>
-
 @interface NSNotificationCenter(Extension)
-
 @end

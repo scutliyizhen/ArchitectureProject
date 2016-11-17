@@ -14,16 +14,20 @@
 {
     if(self = [super init])
     {
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(notificationResponse:) name:@"lyznotification" object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(lyz_notificationResponse:) name:@"lyznotification" object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(xyz_notificationResponse) name:@"xyznotification" object:nil];
     }
     return self;
 }
 
-- (void)notificationResponse:(NSNotification*)notification
+- (void)lyz_notificationResponse:(NSNotification*)notification
 {
-//    NSString* test = @"ddf3r";
-//    [test performSelector:@selector(objectForKey:)];
-    NSLog(@"TestObject  notificationResponse Time:%f \n",[[NSDate date] timeIntervalSince1970]);
+    NSLog(@"TestObject  lyz_notificationResponse Time:%f isMainThread:%d \n",[[NSDate date] timeIntervalSince1970],[NSThread isMainThread]);
+}
+
+- (void)xyz_notificationResponse
+{
+	NSLog(@"TestObject  xyz_notificationResponse Time:%f isMainThread:%d \n",[[NSDate date] timeIntervalSince1970],[NSThread isMainThread]);
 }
 
 - (void)dealloc

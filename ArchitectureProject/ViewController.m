@@ -33,7 +33,10 @@
 - (void)postButtonClick:(UIButton*)btn
 {
     [[NSNotificationCenter defaultCenter] postNotificationName:@"lyznotification" object:nil];
-     NSLog(@"postButtonClick lyznotification  Time:%f",[[NSDate date] timeIntervalSince1970]);
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+      [[NSNotificationCenter defaultCenter] postNotificationName:@"xyznotification" object:nil];
+    });
+    NSLog(@"postButtonClick lyznotification  Time:%f",[[NSDate date] timeIntervalSince1970]);
 }
 
 - (void)testButtonClick:(UIButton*)btn

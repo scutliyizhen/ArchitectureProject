@@ -54,38 +54,13 @@ static const void* INJECT_OBJECT_KEY = "__inject__object__key__";
 
 //注入对象扩展
 @interface GBLInjectObject(Notification)
-@property(nonatomic,copy)NSString* observerSELName;
-@property(nonatomic,copy)NSString* notificationName;
 - (void)lyz_inject_addObserver:(id)observer
                       selector:(SEL)aSelector
                           name:(NSNotificationName)aName
                         object:(id)anObject;//注入对象注册观察者
 @end
 
-static const void* INJECT_OBJECT_OBSERVER_SEL_KEY = "__inject__object__observer__sel__key__";
-static const void* INJECT_OBJECT_NOTIFICATION_NAME = "__inject__object__notification__name__";
-
 @implementation GBLInjectObject(Notification)
-- (void)setObserverSELName:(NSString *)observerSELName
-{
-    objc_setAssociatedObject(self, INJECT_OBJECT_OBSERVER_SEL_KEY, observerSELName, OBJC_ASSOCIATION_COPY);
-}
-
-- (NSString*)observerSELName
-{
-    return objc_getAssociatedObject(self, INJECT_OBJECT_OBSERVER_SEL_KEY);
-}
-
-- (void)setNotificationName:(NSString *)notificationName
-{
-     objc_setAssociatedObject(self, INJECT_OBJECT_NOTIFICATION_NAME, notificationName, OBJC_ASSOCIATION_COPY);
-}
-
-- (NSString*)notificationName
-{
-    return objc_getAssociatedObject(self, INJECT_OBJECT_NOTIFICATION_NAME);
-}
-
 //去掉SEL中的：
 - (NSString*)getSelectorName:(SEL)sel
 {
@@ -107,53 +82,117 @@ static const void* INJECT_OBJECT_NOTIFICATION_NAME = "__inject__object__notifica
 }
 
 //注入对象中替换响应方法命名
-- (NSString*)getInjectNotificationSELName:(NSString*)observerSELName
+- (NSString*)getInjectNotificationSELName:(NSString*)observerSELName hasArgs:(BOOL)hasArgs
 {
     if(observerSELName.length == 0) return nil;
     
-    NSString* injectSELName = [NSString stringWithFormat:@"GBL"];
+    NSString* injectSELName = nil;
+    if(hasArgs)
+    {
+    	injectSELName =	[NSString stringWithFormat:@"GBLInject_%@:",observerSELName];
+    }else
+    {
+    	injectSELName =	[NSString stringWithFormat:@"GBLInject_%@",observerSELName];
+    }
+    return injectSELName;
 }
 
 - (void)lyz_inject_addObserver:(id)observer selector:(SEL)aSelector name:(NSNotificationName)aName object:(id)anObject
 {
     if([observer isKindOfClass:[NSObject class]])
     {
-        NSString* observerSELName = [self getSelectorName:aSelector];
-        NSString* injectSELName = [self getInjectNotificationSELName:observerSELName];
-        
-        
-        
-        
         NSObject* obj = observer;
-        NSArray* argTypeList = [self getObserverArgumentsType:obj aSelector:aSelector];
-        NSString* lastType = argTypeList.lastObject;
-//        if(argTypeList.count == 3 && [lastType isEqualToString:@"@"])
-//        {
+        NSString* observerSELName = [self getSelectorName:aSelector];
+        Method observerMethod = class_getInstanceMethod([obj class], aSelector);
         
-        if([obj isKindOfClass:[TestObject class]])
+        NSArray* argTypeList = [self getObserverArgumentsType:obj aSelector:aSelector];
+        
+        NSString* injectSELName = nil;
+        Method injectMethod = nil;
+        if(argTypeList.count == 2)
         {
-            self.observerSELName = NSStringFromSelector(aSelector);
-            self.notificationName = aName;
-            Method observerMethod = class_getInstanceMethod([obj class], aSelector);
-            Method injectMethod = class_getInstanceMethod([self class], @selector(lyz_inject_responseNotification:));
-            
-            NSLog(@"lyz_inject_addObserver \n observer:%@ \n selector:%@ \n ",obj,self.observerSELName);
-            method_exchangeImplementations(observerMethod, injectMethod);
+            injectSELName = [self getInjectNotificationSELName:observerSELName hasArgs:NO];
+            injectMethod = class_getInstanceMethod([self class], @selector(lyz_inject_responseNotificationNoArg));
         }
         
-//       }
+        if(argTypeList.count == 3)
+        {
+            injectSELName = [self getInjectNotificationSELName:observerSELName hasArgs:YES];
+            injectMethod = class_getInstanceMethod([self class], @selector(lyz_inject_responseNotificationWithArg:));
+        }
         
+        if(injectSELName && injectMethod)
+        {
+            //动态添加响应方法
+            SEL injectSEL = NSSelectorFromString(injectSELName);
+            IMP injectIMP = method_getImplementation(injectMethod);
+            class_addMethod([self class], injectSEL, injectIMP, method_getTypeEncoding(injectMethod));
+            
+            //交换方法 注意：一定要根据SEL重新获取Method
+            Method newInjectMethod = class_getInstanceMethod([self class], injectSEL);
+            method_exchangeImplementations(observerMethod, newInjectMethod);
+            
+            NSLog(@"lyz_inject_addObserver injectSEL:%@ \n",NSStringFromSelector(injectSEL));
+        }
+
+        NSLog(@"lyz_inject_addObserver postName:%@ \n observer:%@ \n observerSelector:%@ \n",aName,obj,NSStringFromSelector(aSelector));
     }
 }
 
-- (void)lyz_inject_responseNotification:(NSNotification *)notification
+
+- (void)notificationResponse:(NSNotification*)notification cmd:(SEL)cmd observer:(id)observer
+{
+	//此时self 指的是GBLInjectObject实例
+    NSString* observerSELName = [self getSelectorName:cmd];
+    NSString* newInjectSELName = [self getInjectNotificationSELName:observerSELName hasArgs:notification == nil ? NO : YES];
+    
+    NSLog(@"notificationResponse \n observer:%@ \n sel:%@ \n notification:%@",observer,observerSELName,notification.description);
+    
+    SEL newInjectSelector = NSSelectorFromString(newInjectSELName);
+    Method newInjectMethod = class_getInstanceMethod([self class], newInjectSelector);
+    IMP newInjectIMP = method_getImplementation(newInjectMethod);
+    
+    if(notification == nil)
+    {
+        void (*func)(id, SEL) = (void *)newInjectIMP;
+        func(self.referenceObj,newInjectSelector);
+    }else
+    {
+        void (*func)(id, SEL,NSNotification *) = (void *)newInjectIMP;
+        func(self.referenceObj,newInjectSelector,notification);
+    }
+}
+
+- (void)lyz_inject_responseNotificationNoArg
 {
     //方法交换以后，如果在此方法中取self，此时的self是原observer
-    NSLog(@"lyz_inject_responseNotification \n");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSLog(@"notificationResponse \n Time:%f \n notificationName:%@ \n observer:%@ \n sel:%@ \n notification:%@  ",[[NSDate date] timeIntervalSince1970],self.injectObj.notificationName,self.description,self.injectObj.observerSELName,notification.description);
-        [self.injectObj lyz_inject_responseNotification:notification];
-    });
+    if([NSThread isMainThread])
+    {
+        NSLog(@"lyz_inject_responseNotificationNoArg  MainThread \n");
+        [self.injectObj notificationResponse:nil cmd:_cmd observer:self];
+    }else
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"lyz_inject_responseNotificationNoArg  DispatchMainQueue \n");
+            [self.injectObj notificationResponse:nil cmd:_cmd observer:self];
+        });
+    }
+}
+
+- (void)lyz_inject_responseNotificationWithArg:(NSNotification *)notification
+{
+    //方法交换以后，如果在此方法中取self，此时的self是原observer
+    if([NSThread isMainThread])
+    {
+        NSLog(@"lyz_inject_responseNotificationWithArg  MainThread \n");
+        [self.injectObj notificationResponse:notification cmd:_cmd observer:self];
+    }else
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"lyz_inject_responseNotificationWithArg  DispatchMainQueue \n");
+            [self.injectObj notificationResponse:notification cmd:_cmd observer:self];
+        });
+    }
 }
 
 - (NSArray<NSString*>*)getObserverArgumentsType:(NSObject*)obj aSelector:(SEL)aSelector
@@ -188,19 +227,29 @@ static const void* INJECT_OBJECT_NOTIFICATION_NAME = "__inject__object__notifica
 
 - (void)lyz_addObserver:(id)observer selector:(SEL)aSelector name:(NSNotificationName)aName object:(id)anObject
 {
-//    dispatch_async(dispatch_get_main_queue(), ^{
-    
-        if([observer isKindOfClass:[NSObject class]])
+    if([NSThread isMainThread])
+    {
+        [self rigisterObserverNotification:observer selector:aSelector name:aName object:anObject];
+    }else
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self rigisterObserverNotification:observer selector:aSelector name:aName object:anObject];
+        });
+    }
+}
+
+- (void)rigisterObserverNotification:(id)observer selector:(SEL)aSelector name:(NSNotificationName)aName object:(id)anObject
+{
+    if([observer isKindOfClass:[NSObject class]])
+    {
+        NSObject* obj = observer;
+        if(obj.injectObj == nil)//保证仅注入一次内部对象
         {
-            NSObject* obj = observer;
-            if(obj.injectObj == nil)//保证仅注入一次内部对象
-            {
-                obj.injectObj = [GBLInjectObject new];
-                [obj.injectObj lyz_inject_addObserver:obj selector:aSelector name:aName object:anObject];
-            }
-           
+            obj.injectObj = [GBLInjectObject new];
         }
-        [self lyz_addObserver:observer selector:aSelector name:aName object:anObject];
-//    });
+        NSLog(@"lyz_addObserver observer:%@ postName:%@ selector:%@",obj,aName,NSStringFromSelector(aSelector));
+        [obj.injectObj lyz_inject_addObserver:obj selector:aSelector name:aName object:anObject];
+    }
+    [self lyz_addObserver:observer selector:aSelector name:aName object:anObject];
 }
 @end
