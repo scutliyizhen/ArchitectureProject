@@ -27,6 +27,12 @@
 
 - (void)xyz_notificationResponse
 {
+    
+//    NSString* testString = @"lyzliii";
+//    
+//    NSDictionary* dic = (NSDictionary*)testString;
+//    
+//    [dic objectForKey:@"hf"];
 	NSLog(@"TestObject  xyz_notificationResponse Time:%f isMainThread:%d \n",[[NSDate date] timeIntervalSince1970],[NSThread isMainThread]);
 }
 

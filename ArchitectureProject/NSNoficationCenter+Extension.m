@@ -8,7 +8,6 @@
 
 #import <objc/runtime.h>
 #import "NSNoficationCenter+Extension.h"
-#import "TestObject.h"
 
 //注入对象
 @interface GBLInjectObject:NSObject
@@ -217,6 +216,8 @@ static const void* INJECT_OBJECT_KEY = "__inject__object__key__";
 
 //通知扩展
 @implementation NSNotificationCenter(Extension)
+
+#ifdef GBL_NOTIFICATIONCENTER_SWITCH
 + (void)load
 {
     //交换注册通知方法
@@ -224,6 +225,7 @@ static const void* INJECT_OBJECT_KEY = "__inject__object__key__";
     Method lyzObserverMethod = class_getInstanceMethod([self class], @selector(lyz_addObserver:selector:name:object:));
     method_exchangeImplementations(orgObserverMethod, lyzObserverMethod);
 }
+#endif
 
 - (void)lyz_addObserver:(id)observer selector:(SEL)aSelector name:(NSNotificationName)aName object:(id)anObject
 {

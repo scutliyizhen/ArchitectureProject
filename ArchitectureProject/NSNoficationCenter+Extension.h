@@ -7,5 +7,8 @@
 //
 
 #import <Foundation/Foundation.h>
+
+//#define  GBL_NOTIFICATIONCENTER_SWITCH 0
+
 @interface NSNotificationCenter(Extension)
 @end
