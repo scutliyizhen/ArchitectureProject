@@ -1,0 +1,12 @@
+PODS:
+  - LTZCocoapod (1.0.0)
+
+DEPENDENCIES:
+  - LTZCocoapod
+
+SPEC CHECKSUMS:
+  LTZCocoapod: ce71fd5ca91686c6efc9ce7335d1fa0858e4a489
+
+PODFILE CHECKSUM: 12aeb0a76762d3f8d7cf6a7ff89ff0cff764ebf7
+
+COCOAPODS: 1.1.1
