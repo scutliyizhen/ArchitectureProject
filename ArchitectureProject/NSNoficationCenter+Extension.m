@@ -86,10 +86,44 @@ static const void* INJECT_OBJECT_NOTIFICATION_NAME = "__inject__object__notifica
     return objc_getAssociatedObject(self, INJECT_OBJECT_NOTIFICATION_NAME);
 }
 
+//去掉SEL中的：
+- (NSString*)getSelectorName:(SEL)sel
+{
+    NSString* stringSel = NSStringFromSelector(sel);
+    NSMutableString* observerSELName = [NSMutableString new];
+    for(int i = 0 ; i < stringSel.length ; i ++)
+    {
+        NSString* charIndex = [stringSel substringWithRange:NSMakeRange(i, 1)];
+        if([charIndex isEqualToString:@":"])
+        {
+            break;
+        }else
+        {
+            [observerSELName appendString:charIndex];
+        }
+    }
+    
+    return [observerSELName copy];
+}
+
+//注入对象中替换响应方法命名
+- (NSString*)getInjectNotificationSELName:(NSString*)observerSELName
+{
+    if(observerSELName.length == 0) return nil;
+    
+    NSString* injectSELName = [NSString stringWithFormat:@"GBL"];
+}
+
 - (void)lyz_inject_addObserver:(id)observer selector:(SEL)aSelector name:(NSNotificationName)aName object:(id)anObject
 {
     if([observer isKindOfClass:[NSObject class]])
     {
+        NSString* observerSELName = [self getSelectorName:aSelector];
+        NSString* injectSELName = [self getInjectNotificationSELName:observerSELName];
+        
+        
+        
+        
         NSObject* obj = observer;
         NSArray* argTypeList = [self getObserverArgumentsType:obj aSelector:aSelector];
         NSString* lastType = argTypeList.lastObject;
@@ -159,7 +193,7 @@ static const void* INJECT_OBJECT_NOTIFICATION_NAME = "__inject__object__notifica
         if([observer isKindOfClass:[NSObject class]])
         {
             NSObject* obj = observer;
-            if(obj.injectObj == nil)
+            if(obj.injectObj == nil)//保证仅注入一次内部对象
             {
                 obj.injectObj = [GBLInjectObject new];
                 [obj.injectObj lyz_inject_addObserver:obj selector:aSelector name:aName object:anObject];
